@@ -61,7 +61,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0]
-        const newBalance = (user.balance_usd as number) + (withdrawal.amount_usd as number)
+        const newBalance = Math.round(((user.balance_usd as number) + (withdrawal.amount_usd as number)) * 100) / 100
 
         await turso.execute({
           sql: 'UPDATE users SET balance_usd = ?, updated_at = ? WHERE telegram_id = ?',

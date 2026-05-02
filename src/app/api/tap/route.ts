@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server'
 import { turso } from '@/lib/turso'
-import { ENERGY_REFILL_MINUTES, MAX_ENERGY, TAP_REWARD_POINTS, getStreakMultiplier } from '@/lib/constants'
+import {
+  ENERGY_REFILL_MINUTES,
+  MAX_ENERGY,
+  TAP_REWARD_POINTS,
+  getStreakMultiplier,
+  getOrbTier,
+  DAILY_BONUS_BASE,
+  MYSTERY_BOX_INTERVAL,
+  rollMysteryBox,
+} from '@/lib/constants'
 
 function recalculateEnergy(user: { energy: number; max_energy: number; last_tap_at: string | null }): number {
   let energy = user.energy
@@ -15,6 +24,15 @@ function recalculateEnergy(user: { energy: number; max_energy: number; last_tap_
     energy = user.max_energy
   }
   return energy
+}
+
+function calcNextRefillSeconds(user: { energy: number; max_energy: number; last_tap_at: string | null }): number | null {
+  if (user.energy >= user.max_energy) return null
+  const lastTap = user.last_tap_at ? new Date(user.last_tap_at).getTime() : Date.now()
+  const minutesSinceLastTap = (Date.now() - lastTap) / 60000
+  const minutesInCurrentRefill = minutesSinceLastTap % ENERGY_REFILL_MINUTES
+  const secondsUntilRefill = Math.floor((ENERGY_REFILL_MINUTES - minutesInCurrentRefill) * 60)
+  return Math.max(secondsUntilRefill, 0)
 }
 
 export async function GET(request: Request) {
@@ -39,16 +57,8 @@ export async function GET(request: Request) {
     const energy = recalculateEnergy(user as { energy: number; max_energy: number; last_tap_at: string | null })
     const streak = (user.streak as number) || 1
     const streakMultiplier = getStreakMultiplier(streak)
-
-    // Calculate seconds until next energy refill
-    let nextRefillIn: number | null = null
-    if (energy < (user.max_energy as number)) {
-      const lastTap = user.last_tap_at ? new Date(user.last_tap_at as string).getTime() : Date.now()
-      const minutesSinceLastTap = (Date.now() - lastTap) / 60000
-      const minutesInCurrentRefill = minutesSinceLastTap % ENERGY_REFILL_MINUTES
-      const secondsUntilRefill = Math.floor((ENERGY_REFILL_MINUTES - minutesInCurrentRefill) * 60)
-      nextRefillIn = Math.max(secondsUntilRefill, 0)
-    }
+    const nextRefillIn = calcNextRefillSeconds({ energy, max_energy: user.max_energy as number, last_tap_at: user.last_tap_at as string | null })
+    const orbTier = getOrbTier(streak)
 
     return NextResponse.json({
       success: true,
@@ -56,11 +66,11 @@ export async function GET(request: Request) {
         canTap: energy >= 1,
         energy,
         maxEnergy: user.max_energy as number,
-        lastTapAt: user.last_tap_at as string | null,
         streak,
         totalTaps: user.total_taps as number,
         nextRefillIn,
         streakMultiplier,
+        orbTier,
       },
     })
   } catch (error) {
@@ -116,15 +126,57 @@ export async function POST(request: Request) {
     }
 
     const streakMultiplier = getStreakMultiplier(streak)
-    const pointsEarned = Math.floor(TAP_REWARD_POINTS * streakMultiplier)
+
+    // Calculate reward: TAP_REWARD_POINTS * streakMultiplier (fractional points allowed as float, floor when saving)
+    const rawPointsEarned = TAP_REWARD_POINTS * streakMultiplier
+    const pointsEarned = Math.floor(rawPointsEarned)
+
+    // Daily bonus logic: If last_daily_bonus_date is not today, award DAILY_BONUS_BASE * streak points
+    let dailyBonus: { claimed: boolean; points: number } = { claimed: false, points: 0 }
+    const lastDailyBonusDate = user.last_daily_bonus_date as string | null
+    let dailyBonusPoints = 0
+
+    if (lastDailyBonusDate !== today) {
+      dailyBonusPoints = Math.floor(DAILY_BONUS_BASE * streak)
+      dailyBonus = { claimed: true, points: dailyBonusPoints }
+    }
+
+    // Calculate new totals
     const newEnergy = energy - 1
-    const newPoints = (user.points as number) + pointsEarned
+    const newPoints = (user.points as number) + pointsEarned + dailyBonusPoints
     const newTotalTaps = (user.total_taps as number) + 1
+
+    // Mystery box logic: After incrementing total_taps, check if (total_taps % MYSTERY_BOX_INTERVAL === 0)
+    let mysteryBox: { triggered: boolean; reward: number; tier: string } = { triggered: false, reward: 0, tier: '' }
+    let mysteryBoxPoints = 0
+    let newMysteryBoxes = user.total_mystery_boxes as number
+
+    if (newTotalTaps % MYSTERY_BOX_INTERVAL === 0) {
+      const boxResult = rollMysteryBox()
+      mysteryBox = { triggered: true, reward: boxResult.reward, tier: boxResult.tier }
+      mysteryBoxPoints = boxResult.reward
+      newMysteryBoxes = newMysteryBoxes + 1
+    }
+
+    const finalPoints = newPoints + mysteryBoxPoints
     const now = new Date().toISOString()
 
     await turso.execute({
-      sql: 'UPDATE users SET energy = ?, points = ?, last_tap_at = ?, streak = ?, last_streak_date = ?, total_taps = ?, updated_at = ? WHERE telegram_id = ?',
-      args: [newEnergy, newPoints, now, streak, today, newTotalTaps, now, String(telegramId)],
+      sql: `UPDATE users SET energy = ?, points = ?, last_tap_at = ?, streak = ?, last_streak_date = ?,
+            last_daily_bonus_date = ?, total_taps = ?, total_mystery_boxes = ?, updated_at = ?
+            WHERE telegram_id = ?`,
+      args: [
+        newEnergy,
+        finalPoints,
+        now,
+        streak,
+        today,
+        dailyBonus.claimed ? today : (user.last_daily_bonus_date as string | null),
+        newTotalTaps,
+        newMysteryBoxes,
+        now,
+        String(telegramId),
+      ],
     })
 
     return NextResponse.json({
@@ -135,6 +187,8 @@ export async function POST(request: Request) {
         streak,
         streakMultiplier,
         totalTaps: newTotalTaps,
+        dailyBonus,
+        mysteryBox,
       },
     })
   } catch (error) {

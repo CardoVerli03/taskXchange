@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { turso } from '@/lib/turso'
 import { isAdmin } from '@/lib/telegram'
-import type { AdminStats } from '@/lib/types'
 
 export async function GET(request: Request) {
   try {
@@ -27,12 +26,12 @@ export async function GET(request: Request) {
     })
     const activeToday = activeTodayResult.rows[0].count as number
 
-    // Total earned (sum of balance_usd)
-    const totalEarnedResult = await turso.execute({
+    // Total balance held by users (unpaid balance)
+    const balanceSumResult = await turso.execute({
       sql: 'SELECT COALESCE(SUM(balance_usd), 0) as total FROM users',
       args: [],
     })
-    const balanceSum = totalEarnedResult.rows[0].total as number
+    const balanceSum = balanceSumResult.rows[0].total as number
 
     // Total paid out (sum of paid withdrawals)
     const totalPaidOutResult = await turso.execute({
@@ -41,8 +40,8 @@ export async function GET(request: Request) {
     })
     const totalPaidOut = totalPaidOutResult.rows[0].total as number
 
-    // Total earned = balance + already paid out
-    const totalEarned = balanceSum + totalPaidOut
+    // Total earned by users = balance held + already paid out
+    const totalEarned = Math.round((balanceSum + totalPaidOut) * 100) / 100
 
     // Pending withdrawals count
     const pendingWithdrawalsResult = await turso.execute({
@@ -72,7 +71,26 @@ export async function GET(request: Request) {
     })
     const activeTasks = activeTasksResult.rows[0].count as number
 
-    const stats: AdminStats = {
+    // Admin profit: CPA revenue (payout_admin * completions_count for each task) minus total paid to users
+    const cpaRevenueResult = await turso.execute({
+      sql: "SELECT COALESCE(SUM(payout_admin * completions_count), 0) as total FROM tasks WHERE payout_admin IS NOT NULL AND completions_count > 0",
+      args: [],
+    })
+    const cpaRevenue = cpaRevenueResult.rows[0].total as number
+
+    // Total reward_usd paid out to users via approved submissions
+    const totalRewardsPaidResult = await turso.execute({
+      sql: `SELECT COALESCE(SUM(t.reward_usd), 0) as total
+            FROM submissions s
+            JOIN tasks t ON s.task_id = t.id
+            WHERE s.status = 'approved' AND t.reward_usd > 0`,
+      args: [],
+    })
+    const totalRewardsPaid = totalRewardsPaidResult.rows[0].total as number
+
+    const adminProfit = Math.round((cpaRevenue - totalRewardsPaid) * 100) / 100
+
+    const stats = {
       totalUsers,
       activeToday,
       totalEarned,
@@ -81,6 +99,7 @@ export async function GET(request: Request) {
       pendingSubmissions,
       totalTasks,
       activeTasks,
+      adminProfit,
     }
 
     return NextResponse.json({

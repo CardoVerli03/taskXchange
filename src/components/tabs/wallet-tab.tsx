@@ -1,26 +1,25 @@
 'use client'
 
 import { useAppStore } from '@/hooks/use-app-store'
-import { formatPoints, pointsToUsd, formatUsd, MIN_WITHDRAWAL_USD, POINTS_TO_USD, ADMIN_TELEGRAM_ID } from '@/lib/constants'
+import { formatPoints, pointsToUsd, formatUsd, MIN_WITHDRAWAL_USD, MIN_CONVERSION_POINTS, POINTS_TO_USD } from '@/lib/constants'
 import type { Withdrawal } from '@/lib/types'
 import { motion } from 'framer-motion'
 import {
   Wallet,
   Shield,
-  Copy,
   Loader2,
   ArrowUpRight,
   ArrowDownLeft,
-  User,
   Calendar,
   Star,
   CheckCircle2,
   Clock,
   XCircle,
-  ChevronDown,
   Info,
-  ExternalLink,
   Settings,
+  Coins,
+  DollarSign,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,11 +40,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 
 export default function WalletTab() {
-  const { user, isAdmin, setShowAdmin, setWalletAddress } = useAppStore()
+  const { user, isAdmin, setShowAdmin, setWalletAddress, addPoints, addBalance, deductBalance } = useAppStore()
   const { toast } = useToast()
   const [walletAddr, setWalletAddr] = useState('')
   const [cryptoType, setCryptoType] = useState('LTC')
   const [savingWallet, setSavingWallet] = useState(false)
+  const [convertPoints, setConvertPoints] = useState('')
+  const [converting, setConverting] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
@@ -107,6 +108,45 @@ export default function WalletTab() {
     }
   }
 
+  const handleConvert = async () => {
+    if (!user) return
+    const points = parseInt(convertPoints)
+    if (!points || points < MIN_CONVERSION_POINTS) {
+      toast({ title: 'Error', description: `Minimum conversion is ${MIN_CONVERSION_POINTS.toLocaleString()} points`, variant: 'destructive' })
+      return
+    }
+    if (points > user.points) {
+      toast({ title: 'Error', description: 'Insufficient points', variant: 'destructive' })
+      return
+    }
+
+    setConverting(true)
+    try {
+      const res = await fetch('/api/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: user.telegram_id, points }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const result = data.data
+        addPoints(-result.pointsConverted)
+        addBalance(result.usdReceived)
+        setConvertPoints('')
+        toast({
+          title: 'Converted!',
+          description: `${formatPoints(result.pointsConverted)} points → ${formatUsd(result.usdReceived)}`,
+        })
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to convert', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+    } finally {
+      setConverting(false)
+    }
+  }
+
   const handleWithdraw = async () => {
     if (!user) return
     const amount = parseFloat(withdrawAmount)
@@ -137,6 +177,7 @@ export default function WalletTab() {
       })
       const data = await res.json()
       if (data.success) {
+        deductBalance(amount)
         toast({ title: 'Requested!', description: 'Withdrawal request submitted' })
         setWithdrawAmount('')
         fetchWithdrawals()
@@ -179,13 +220,13 @@ export default function WalletTab() {
       : 'bg-red-500/10 border-red-500/20'
     : 'bg-zinc-800 border-zinc-700'
 
-  const pointsNeeded = withdrawAmount ? Math.ceil(parseFloat(withdrawAmount) / POINTS_TO_USD) : 0
+  const convertUsdValue = convertPoints ? pointsToUsd(parseInt(convertPoints) || 0) : 0
 
   if (!user) return null
 
   return (
     <div className="p-4 space-y-4 pb-6">
-      {/* Profile Section */}
+      {/* ============ PROFILE SECTION ============ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -222,48 +263,122 @@ export default function WalletTab() {
         </Card>
       </motion.div>
 
-      {/* Balance Section */}
+      {/* ============ BALANCE SECTION - TWO CARDS ============ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.05 }}
+        className="grid grid-cols-2 gap-3"
       >
+        {/* Points Card */}
         <Card className="border-white/5 bg-zinc-900 overflow-hidden">
           <div className="absolute inset-0 card-gradient-emerald" />
-          <CardContent className="relative p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Wallet className="w-5 h-5 text-emerald-400" />
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Balance</span>
+          <CardContent className="relative p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Coins className="w-4 h-4 text-emerald-400" />
+              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Points</span>
             </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-3xl font-bold text-white">{formatPoints(user.points)}</span>
-              <span className="text-sm text-zinc-500">points</span>
+            <p className="text-xl font-bold text-white">{formatPoints(user.points)}</p>
+            <p className="text-xs text-emerald-400 mt-1">{formatUsd(pointsToUsd(user.points))} USD</p>
+            <Button
+              size="sm"
+              className="mt-2 w-full h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => {
+                const maxConvert = Math.floor(user.points / MIN_CONVERSION_POINTS) * MIN_CONVERSION_POINTS
+                if (maxConvert >= MIN_CONVERSION_POINTS) {
+                  setConvertPoints(String(maxConvert))
+                }
+              }}
+            >
+              Convert to USD
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* USD Card */}
+        <Card className="border-white/5 bg-zinc-900 overflow-hidden">
+          <div className="absolute inset-0 card-gradient-amber" />
+          <CardContent className="relative p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <DollarSign className="w-4 h-4 text-amber-400" />
+              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">USD</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-400">{formatUsd(user.balance_usd)}</span>
-              <span className="text-xs text-zinc-500">available</span>
-            </div>
-            <Separator className="my-3 bg-white/5" />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs text-zinc-500">Total Points</p>
-                <p className="text-sm font-semibold text-white">{formatPoints(user.points)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500">USD Value</p>
-                <p className="text-sm font-semibold text-amber-400">{formatUsd(pointsToUsd(user.points))}</p>
-              </div>
-            </div>
+            <p className="text-xl font-bold text-amber-400">{formatUsd(user.balance_usd)}</p>
+            <p className="text-xs text-zinc-500 mt-1">available</p>
+            <Button
+              size="sm"
+              className="mt-2 w-full h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                if (user.balance_usd >= MIN_WITHDRAWAL_USD) {
+                  setWithdrawAmount(String(user.balance_usd))
+                }
+              }}
+              disabled={user.balance_usd < MIN_WITHDRAWAL_USD}
+            >
+              Withdraw
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Wallet Settings */}
+      {/* ============ CONVERT POINTS TO USD ============ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Card className="border-white/5 bg-zinc-900">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-sm font-semibold text-white">Convert Points to USD</h3>
+            </div>
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-zinc-800/50 border border-white/5">
+              <Info className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+              <div className="text-xs text-zinc-500">
+                <p>100,000 points = $1.00 USD</p>
+                <p>Minimum conversion: {MIN_CONVERSION_POINTS.toLocaleString()} points</p>
+                <p>Available: {formatPoints(user.points)} points</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-zinc-400">Points to convert</Label>
+              <Input
+                type="number"
+                min={MIN_CONVERSION_POINTS}
+                step="1000"
+                placeholder="10000"
+                value={convertPoints}
+                onChange={(e) => setConvertPoints(e.target.value)}
+                className="bg-zinc-800 border-white/10 text-white placeholder:text-zinc-600 h-9 text-sm"
+              />
+              {convertUsdValue > 0 && (
+                <p className="text-xs text-amber-400 font-medium">
+                  You&apos;ll receive: {formatUsd(convertUsdValue)}
+                </p>
+              )}
+            </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-sm"
+              onClick={handleConvert}
+              disabled={converting || !convertPoints || parseInt(convertPoints) < MIN_CONVERSION_POINTS || parseInt(convertPoints) > user.points}
+            >
+              {converting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <ArrowRightLeft className="w-4 h-4 mr-2" />
+              )}
+              Convert to USD
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* ============ WALLET SETTINGS ============ */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
       >
         <Card className="border-white/5 bg-zinc-900">
           <CardContent className="p-4 space-y-3">
@@ -308,11 +423,11 @@ export default function WalletTab() {
         </Card>
       </motion.div>
 
-      {/* Withdraw Section */}
+      {/* ============ WITHDRAW SECTION ============ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
       >
         <Card className="border-white/5 bg-zinc-900">
           <CardContent className="p-4 space-y-3">
@@ -333,16 +448,11 @@ export default function WalletTab() {
                 type="number"
                 min={MIN_WITHDRAWAL_USD}
                 step="0.01"
-                placeholder="0.50"
+                placeholder="1.00"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 className="bg-zinc-800 border-white/10 text-white placeholder:text-zinc-600 h-9 text-sm"
               />
-              {pointsNeeded > 0 && (
-                <p className="text-xs text-zinc-500">
-                  Requires {formatPoints(pointsNeeded)} points
-                </p>
-              )}
             </div>
             <Button
               className="w-full bg-amber-600 hover:bg-amber-700 text-white h-9 text-sm"
@@ -363,11 +473,11 @@ export default function WalletTab() {
         </Card>
       </motion.div>
 
-      {/* Transaction History */}
+      {/* ============ TRANSACTION HISTORY ============ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ duration: 0.3, delay: 0.25 }}
       >
         <h3 className="text-sm font-semibold text-zinc-400 mb-3">Transaction History</h3>
         <Card className="border-white/5 bg-zinc-900">
@@ -390,7 +500,7 @@ export default function WalletTab() {
                 <p className="text-sm text-zinc-500">No withdrawals yet</p>
               </div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-white/5 max-h-64 overflow-y-auto">
                 {withdrawals.map((w) => (
                   <div key={w.id} className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -429,7 +539,7 @@ export default function WalletTab() {
         </Card>
       </motion.div>
 
-      {/* Secret Admin Access */}
+      {/* ============ SECRET ADMIN ACCESS ============ */}
       <div className="pt-4 text-center">
         <button
           onClick={handleSecretTap}

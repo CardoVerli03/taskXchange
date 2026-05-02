@@ -16,8 +16,8 @@ export async function GET(request: Request) {
     const args: (string | number)[] = []
 
     if (search) {
-      sql += ' AND (username LIKE ? OR telegram_id LIKE ?)'
-      args.push(`%${search}%`, `%${search}%`)
+      sql += ' AND (username LIKE ? OR telegram_id LIKE ? OR first_name LIKE ?)'
+      args.push(`%${search}%`, `%${search}%`, `%${search}%`)
     }
 
     sql += ' ORDER BY created_at DESC'
@@ -63,8 +63,11 @@ export async function PUT(request: Request) {
     const args: (string | number | null)[] = []
 
     if (is_banned !== undefined) { updates.push('is_banned = ?'); args.push(is_banned ? 1 : 0) }
-    if (balance_usd !== undefined) { updates.push('balance_usd = ?'); args.push(balance_usd) }
-    if (points !== undefined) { updates.push('points = ?'); args.push(points) }
+    if (balance_usd !== undefined) {
+      updates.push('balance_usd = ?')
+      args.push(Math.round(balance_usd * 100) / 100)
+    }
+    if (points !== undefined) { updates.push('points = ?'); args.push(Math.floor(points)) }
     if (trust_score !== undefined) { updates.push('trust_score = ?'); args.push(Math.min(Math.max(trust_score, 0), 100)) }
 
     if (updates.length === 0) {

@@ -80,3 +80,113 @@ Stage Summary:
 - Admin panel overlay with full CRUD operations
 - All components make real API calls, no fake data
 - Mobile-first responsive design for Telegram Mini App
+
+---
+Task ID: 3
+Agent: Backend API Rebuilder
+Task: Rebuild ALL backend API routes with NEW economics model
+
+Work Log:
+- Deleted old src/app/api/route.ts default file
+- Rebuilt all 14 API route files with 21 endpoints total
+- Key changes implementing the new economics model:
+  - Points and USD are now SEPARATE (100,000 points = $1.00 USD)
+  - POST /api/init: Added last_daily_bonus_date and total_mystery_boxes fields to new user creation
+  - GET/POST /api/tasks: Added country filter on GET, strict paid/s4s validation on POST (paid requires reward_usd, s4s requires reward_points)
+  - PUT /api/submissions/[id]: CRITICAL CHANGE - When approved, adds reward_usd to balance_usd (real money) AND reward_points to points (game currency) separately
+  - GET /api/tap: Added orbTier response field (green/gold/purple/diamond based on streak)
+  - POST /api/tap: MAJOR CHANGES - Added daily bonus logic (DAILY_BONUS_BASE * streak on first tap of day), mystery box logic (every 50th tap using rollMysteryBox()), fractional points floored when saving
+  - POST /api/convert: NEW ENDPOINT - Converts points to USD at POINTS_TO_USD rate, validates MIN_CONVERSION_POINTS (10,000), deducts points and adds to balance_usd, logs to point_conversions table
+  - POST /api/withdrawals: Fixed crypto_type default from 'usdt' to 'LTC'
+  - GET /api/admin/stats: Added adminProfit calculation (CPA revenue from payout_admin * completions_count minus total reward_usd paid out via approved submissions)
+  - PUT /api/admin/users: Added balance_usd precision rounding and points flooring
+  - All balance_usd values use Math.round(val * 100) / 100 for precision
+  - All points values use Math.floor() when saving fractional points
+
+Stage Summary:
+- 14 route files: init, me, tasks, tasks/[id], submissions, submissions/[id], tap, convert, withdrawals, withdrawals/[id], admin/stats, admin/users, settings, users/wallet
+- New endpoint: POST /api/convert (points-to-USD conversion)
+- All lint checks pass cleanly
+- Dev server running, API routes returning 200 responses
+- New economics model fully implemented: separate points/USD, daily bonus, mystery boxes, orb tiers
+
+---
+Task ID: 4
+Agent: Frontend Rebuilder
+Task: Rebuild ALL frontend components with NEW economics model
+
+Work Log:
+- Updated globals.css with extensive new animations:
+  - Orb glow animations per tier (green, gold, purple, diamond) with pulsing box-shadows
+  - Diamond shimmer overlay with rainbow gradient animation
+  - Mystery box animations: shake, open, and reveal phases
+  - Particle burst animation with CSS custom properties for direction
+  - Daily bonus pop and glow animations
+  - Screen shake keyframe for impact effects
+  - Energy refill pulse indicator
+  - Float-up animation for +points text
+  - Kept all existing: scrollbar styles, card gradients, tap-glow, streak-pulse, energy-fill
+- Updated layout.tsx: title changed to "TaskX - Earn Crypto"
+- Updated page.tsx: loading screen shows "Earn Crypto" subtitle
+- Rebuilt app-shell.tsx with dual balance badges:
+  - Points badge (emerald): "[1.2K pts]" with Coins icon
+  - USD badge (amber): "[$0.12]" showing balance_usd
+  - Admin shield button in header when admin
+- Rebuilt home-tab.tsx with new economics model:
+  - Two balance cards side by side: Points card (with USD equivalent) + USD card (with Withdraw CTA)
+  - Quick stats row: Energy, Streak (with orb tier color badge), Trust Score
+  - Energy bar with color-coded progress
+  - Quick action buttons
+  - Recent activity with scrollable list
+- Rebuilt tasks-tab.tsx for PAID TASKS:
+  - Each task shows EARN: $0.25 in BIG amber/gold text (the reward_usd)
+  - Bonus points shown separately: "+500 pts bonus" in emerald
+  - Country flag + name displayed
+  - Two buttons: Start Task + Submit Proof
+  - Submit proof dialog shows both USD and points rewards
+- Rebuilt s4s-tab.tsx with points-only rewards:
+  - Rewards shown as points only with Coins icon
+  - Post form, browse list, submit proof dialog
+- COMPLETELY REBUILT tap-tab.tsx - THE MAGIC TAB:
+  - Streak display with Flame icon, orb tier badge, multiplier
+  - Large 44x44 orb with tier-based gradient (green/gold/purple/diamond)
+  - Diamond tier gets rainbow shimmer overlay
+  - Orb glow animation per tier
+  - Ring decorations (inner + outer)
+  - On TAP: scale 0.9 whileTap, 7 particles fly outward with framer-motion
+  - Floating "+X" text on each tap
+  - Mystery box: full-screen overlay every 50th tap with shake→open→reveal phases
+  - Mystery box tiers: common (green), uncommon (blue), rare (purple), legendary (gold)
+  - Legendary tier gets 20 celebration particles
+  - Daily bonus: popup modal on first tap of day with Star icon, confetti particles
+  - Energy bar with refill countdown timer and pulse animation
+  - Stats row: Total Taps, Earned Tapping, Mystery Boxes Found
+- Rebuilt wallet-tab.tsx with convert points to USD:
+  - Two balance cards: Points (with Convert to USD button) + USD (with Withdraw button)
+  - Convert Points to USD section: input with "You'll receive: $X.XX" preview
+  - Minimum 10,000 points enforced
+  - Wallet settings: crypto type selector (LTC/SOL), address input
+  - Withdraw section: USD amount input, min $1.00
+  - Transaction history with status badges
+  - Secret admin access via v1.0.0 tap
+- Rebuilt admin-tab.tsx with new economics fields:
+  - Dashboard with stat cards (total users, active today, earnings, payouts, etc.)
+  - Tasks CRUD with new fields:
+    - Reward USD (big prominent field with $ prefix) - what user earns
+    - Your Payout (what CPA pays admin) - for tracking
+    - Your Profit (auto-calculated, shown in green/red)
+    - Bonus Points (optional on top of USD)
+    - Max completions
+  - Task list shows reward_usd prominently and payout_admin for reference
+  - Submissions, Withdrawals, Users, Settings tabs unchanged but with USD balance display
+- Created /api/convert route for points-to-USD conversion
+
+Stage Summary:
+- All 6 tab components rebuilt with new economics model
+- Points and USD are SEPARATE throughout the UI
+- Tap tab is the star with orb tiers, particles, mystery box, daily bonus
+- Admin can track profit (payout - reward_usd) per task
+- Wallet supports points-to-USD conversion
+- All components are 'use client', use Lucide icons only, dark theme
+- Lint passes cleanly
+- Dev server compiles successfully

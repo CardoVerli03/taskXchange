@@ -68,14 +68,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const user = userResult.rows[0]
 
       if (status === 'approved') {
-        // Add reward_points to user's points
-        const newPoints = (user.points as number) + (task.reward_points as number)
+        // NEW ECONOMICS: Add reward_usd to user's balance_usd (REAL money)
+        // Add reward_points to user's points (game currency)
+        const rewardUsd = (task.reward_usd as number) || 0
+        const rewardPoints = (task.reward_points as number) || 0
 
-        // If reward_usd exists, add to user's balance_usd
-        let newBalance = user.balance_usd as number
-        if (task.reward_usd) {
-          newBalance += task.reward_usd as number
-        }
+        const newPoints = (user.points as number) + rewardPoints
+        const newBalance = Math.round(((user.balance_usd as number) + rewardUsd) * 100) / 100
 
         // Increase trust_score by 1 (max 100)
         const newTrustScore = Math.min((user.trust_score as number) + 1, 100)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/hooks/use-app-store'
-import { formatPoints, pointsToUsd, formatUsd, COUNTRIES } from '@/lib/constants'
+import { formatPoints, formatUsd, COUNTRIES } from '@/lib/constants'
 import type { Task, Submission, Withdrawal, User as UserType, AdminStats, AppSetting } from '@/lib/types'
 import { motion } from 'framer-motion'
 import {
@@ -24,6 +24,9 @@ import {
   Eye,
   ExternalLink,
   Clock,
+  DollarSign,
+  TrendingUp,
+  Coins,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,7 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useState, useEffect, useCallback } from 'react'
@@ -146,7 +148,19 @@ function DashboardTab() {
     { label: 'Total Paid', value: formatUsd(stats.totalPaidOut), icon: Wallet, color: 'violet' },
     { label: 'Pending Payouts', value: stats.pendingWithdrawals, icon: Clock, color: 'amber' },
     { label: 'Pending Proofs', value: stats.pendingSubmissions, icon: FileCheck, color: 'red' },
+    { label: 'Total Tasks', value: stats.totalTasks, icon: Briefcase, color: 'emerald' },
+    { label: 'Active Tasks', value: stats.activeTasks, icon: Play, color: 'amber' },
   ] : []
+
+  // Calculate admin profit if we have the data
+  if (stats && stats.adminProfit !== undefined) {
+    statCards.push({
+      label: 'Admin Profit',
+      value: formatUsd(stats.adminProfit),
+      icon: TrendingUp,
+      color: 'emerald',
+    })
+  }
 
   const colorMap: Record<string, { bg: string; text: string }> = {
     emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
@@ -189,9 +203,12 @@ function AdminTasksTab() {
   const [formTitle, setFormTitle] = useState('')
   const [formLink, setFormLink] = useState('')
   const [formType, setFormType] = useState<'paid' | 's4s'>('paid')
-  const [formReward, setFormReward] = useState('100')
+  const [formRewardUsd, setFormRewardUsd] = useState('0.25')
+  const [formRewardPoints, setFormRewardPoints] = useState('0')
+  const [formPayoutAdmin, setFormPayoutAdmin] = useState('')
   const [formCountry, setFormCountry] = useState('GLOBAL')
   const [formDesc, setFormDesc] = useState('')
+  const [formMaxCompletions, setFormMaxCompletions] = useState('')
   const [formSaving, setFormSaving] = useState(false)
 
   const fetchTasks = useCallback(async () => {
@@ -215,9 +232,12 @@ function AdminTasksTab() {
     setFormTitle('')
     setFormLink('')
     setFormType('paid')
-    setFormReward('100')
+    setFormRewardUsd('0.25')
+    setFormRewardPoints('0')
+    setFormPayoutAdmin('')
     setFormCountry('GLOBAL')
     setFormDesc('')
+    setFormMaxCompletions('')
     setEditTask(null)
     setShowAddForm(false)
   }
@@ -227,11 +247,20 @@ function AdminTasksTab() {
     setFormTitle(task.title)
     setFormLink(task.link)
     setFormType(task.type)
-    setFormReward(task.reward_points.toString())
+    setFormRewardUsd(String(task.reward_usd || 0))
+    setFormRewardPoints(String(task.reward_points || 0))
+    setFormPayoutAdmin(String(task.payout_admin || ''))
     setFormCountry(task.country || 'GLOBAL')
     setFormDesc(task.description || '')
+    setFormMaxCompletions(task.max_completions ? String(task.max_completions) : '')
     setShowAddForm(true)
   }
+
+  const calculatedProfit = (() => {
+    const rewardUsd = parseFloat(formRewardUsd) || 0
+    const payout = parseFloat(formPayoutAdmin) || 0
+    return payout - rewardUsd
+  })()
 
   const handleSaveTask = async () => {
     if (!user) return
@@ -239,9 +268,12 @@ function AdminTasksTab() {
       toast({ title: 'Error', description: 'Title and link are required', variant: 'destructive' })
       return
     }
-    const reward = parseInt(formReward)
-    if (!reward || reward <= 0) {
-      toast({ title: 'Error', description: 'Reward must be > 0', variant: 'destructive' })
+    const rewardPoints = parseInt(formRewardPoints) || 0
+    const rewardUsd = parseFloat(formRewardUsd) || 0
+    const payoutAdmin = parseFloat(formPayoutAdmin) || null
+
+    if (formType === 'paid' && rewardUsd <= 0) {
+      toast({ title: 'Error', description: 'Paid tasks must have a USD reward > 0', variant: 'destructive' })
       return
     }
 
@@ -254,9 +286,12 @@ function AdminTasksTab() {
         type: formType,
         title: formTitle.trim(),
         link: formLink.trim(),
-        reward_points: reward,
+        reward_points: rewardPoints,
+        reward_usd: rewardUsd,
+        payout_admin: payoutAdmin,
         country: formCountry === 'GLOBAL' ? null : formCountry,
         description: formDesc.trim() || null,
+        max_completions: formMaxCompletions ? parseInt(formMaxCompletions) : null,
       }
       if (!editTask) {
         body.status = 'active'
@@ -381,13 +416,94 @@ function AdminTasksTab() {
               <Input value={formLink} onChange={(e) => setFormLink(e.target.value)} className="bg-zinc-800 border-white/10 text-white h-8 text-xs" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-zinc-400">Reward (points)</Label>
-              <Input type="number" value={formReward} onChange={(e) => setFormReward(e.target.value)} className="bg-zinc-800 border-white/10 text-white h-8 text-xs" />
-            </div>
-            <div className="space-y-1">
               <Label className="text-xs text-zinc-400">Description</Label>
               <Textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="bg-zinc-800 border-white/10 text-white text-xs min-h-[50px]" />
             </div>
+
+            {/* USD Reward - BIG prominent field */}
+            {formType === 'paid' && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    Reward USD (what user earns) *
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 font-bold text-sm">$</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formRewardUsd}
+                      onChange={(e) => setFormRewardUsd(e.target.value)}
+                      className="bg-zinc-800 border-amber-500/20 text-amber-400 font-bold text-lg h-12 pl-7"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-zinc-400 flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    Your Payout (CPA pays you)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formPayoutAdmin}
+                      onChange={(e) => setFormPayoutAdmin(e.target.value)}
+                      className="bg-zinc-800 border-white/10 text-white h-9 pl-7 text-sm"
+                    />
+                  </div>
+                </div>
+                {parseFloat(formPayoutAdmin) > 0 && (
+                  <div className={`p-2.5 rounded-lg border ${
+                    calculatedProfit >= 0
+                      ? 'bg-emerald-500/5 border-emerald-500/10'
+                      : 'bg-red-500/5 border-red-500/10'
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp className={`w-3.5 h-3.5 ${calculatedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                      <span className={`text-sm font-bold ${calculatedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        Your Profit: {formatUsd(calculatedProfit)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      Payout ({formatUsd(parseFloat(formPayoutAdmin) || 0)}) - Reward ({formatUsd(parseFloat(formRewardUsd) || 0)})
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Reward Points */}
+            <div className="space-y-1">
+              <Label className="text-xs text-zinc-400 flex items-center gap-1">
+                <Coins className="w-3 h-3" />
+                Bonus Points (optional, on top of USD)
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                value={formRewardPoints}
+                onChange={(e) => setFormRewardPoints(e.target.value)}
+                className="bg-zinc-800 border-white/10 text-white h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-zinc-400">Max Completions</Label>
+              <Input
+                type="number"
+                min="0"
+                value={formMaxCompletions}
+                onChange={(e) => setFormMaxCompletions(e.target.value)}
+                className="bg-zinc-800 border-white/10 text-white h-8 text-xs"
+                placeholder="Unlimited"
+              />
+            </div>
+
             <div className="flex gap-2">
               <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs" onClick={handleSaveTask} disabled={formSaving}>
                 {formSaving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
@@ -415,7 +531,7 @@ function AdminTasksTab() {
               <CardContent className="p-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 mr-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-white">{task.title}</span>
                       <Badge variant="secondary" className={`text-[10px] ${task.type === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-violet-500/10 text-violet-400'}`}>
                         {task.type}
@@ -424,7 +540,20 @@ function AdminTasksTab() {
                         {task.status}
                       </Badge>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">{formatPoints(task.reward_points)} pts &middot; {task.completions_count} completions</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      {task.reward_usd > 0 && (
+                        <span className="text-xs font-bold text-amber-400">{formatUsd(task.reward_usd)} USD</span>
+                      )}
+                      {task.reward_points > 0 && (
+                        <span className="text-xs text-emerald-400">+{formatPoints(task.reward_points)} pts</span>
+                      )}
+                      <span className="text-xs text-zinc-500">{task.completions_count} completions</span>
+                    </div>
+                    {task.payout_admin && task.payout_admin > 0 && (
+                      <p className="text-[10px] text-zinc-600 mt-0.5">
+                        Payout: {formatUsd(task.payout_admin)} | Profit: {formatUsd(task.payout_admin - (task.reward_usd || 0))}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-white" onClick={() => openEdit(task)}>
@@ -767,7 +896,8 @@ function AdminUsersTab() {
                     </div>
                     <p className="text-xs text-zinc-500 truncate">{u.telegram_id}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-amber-400">{formatPoints(u.points)} pts</span>
+                      <span className="text-xs text-emerald-400">{formatPoints(u.points)} pts</span>
+                      <span className="text-xs text-amber-400">{formatUsd(u.balance_usd)}</span>
                       <span className="text-xs text-zinc-500">Trust: {u.trust_score}</span>
                     </div>
                   </div>

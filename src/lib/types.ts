@@ -4,8 +4,8 @@ export interface User {
   username: string | null
   first_name: string | null
   last_name: string | null
-  points: number
-  balance_usd: number
+  points: number           // Game currency from tapping
+  balance_usd: number      // Real USD from paid tasks + conversions
   wallet_address: string | null
   crypto_type: string
   energy: number
@@ -13,7 +13,9 @@ export interface User {
   streak: number
   last_tap_at: string | null
   last_streak_date: string | null
+  last_daily_bonus_date: string | null
   total_taps: number
+  total_mystery_boxes: number
   is_banned: number
   trust_score: number
   created_at: string
@@ -26,10 +28,10 @@ export interface Task {
   title: string
   description: string | null
   link: string
-  reward_points: number
-  reward_usd: number | null
+  reward_usd: number       // USD paid to user for paid tasks
+  reward_points: number    // Points awarded (for both types)
   country: string | null
-  payout_admin: number | null
+  payout_admin: number | null  // What admin earns from CPA
   posted_by: string | null
   status: 'active' | 'paused' | 'completed'
   max_completions: number | null
@@ -65,6 +67,14 @@ export interface Withdrawal {
   created_at: string
 }
 
+export interface PointConversion {
+  id: number
+  user_id: string
+  points: number
+  usd_received: number
+  created_at: string
+}
+
 export interface AppSetting {
   key: string
   value: string
@@ -91,6 +101,7 @@ export interface AdminStats {
   pendingSubmissions: number
   totalTasks: number
   activeTasks: number
+  adminProfit: number
 }
 
 // Frontend types
@@ -112,6 +123,20 @@ export interface TapState {
   lastTapAt: string | null
   streak: number
   totalTaps: number
-  nextRefillIn: number | null // seconds
+  nextRefillIn: number | null
   streakMultiplier: number
 }
+
+export interface MysteryBoxResult {
+  triggered: boolean
+  reward: number
+  tier: 'common' | 'uncommon' | 'rare' | 'legendary'
+}
+
+export interface DailyBonusResult {
+  claimed: boolean
+  points: number
+  streak: number
+}
+
+export type OrbTier = 'green' | 'gold' | 'purple' | 'diamond'

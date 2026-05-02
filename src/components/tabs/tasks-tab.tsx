@@ -1,18 +1,20 @@
 'use client'
 
 import { useAppStore } from '@/hooks/use-app-store'
-import { formatPoints, pointsToUsd, formatUsd, COUNTRIES } from '@/lib/constants'
-import type { Task, Submission } from '@/lib/types'
+import { formatPoints, formatUsd, COUNTRIES } from '@/lib/constants'
+import type { Task } from '@/lib/types'
 import { motion } from 'framer-motion'
 import {
   Briefcase,
   ExternalLink,
   Send,
-  Globe,
   Filter,
   Loader2,
   Inbox,
   CheckCircle2,
+  DollarSign,
+  Coins,
+  Globe,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -122,7 +124,7 @@ export default function TasksTab() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Earn Rewards</h1>
-          <p className="text-sm text-zinc-500">Complete tasks to earn crypto</p>
+          <p className="text-sm text-zinc-500">Complete tasks to earn USD</p>
         </div>
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-zinc-500" />
@@ -150,6 +152,7 @@ export default function TasksTab() {
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <Skeleton className="h-4 w-3/4 bg-zinc-800" />
+                  <Skeleton className="h-6 w-24 bg-zinc-800" />
                   <Skeleton className="h-3 w-1/2 bg-zinc-800" />
                   <div className="flex gap-2">
                     <Skeleton className="h-8 w-20 bg-zinc-800" />
@@ -181,40 +184,49 @@ export default function TasksTab() {
               >
                 <Card className="border-white/5 bg-zinc-900 hover:border-white/10 transition-colors">
                   <CardContent className="p-4">
+                    {/* Title and Country */}
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="text-sm font-semibold text-white leading-tight flex-1 mr-2">
                         {task.title}
                       </h3>
-                      <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
-                        +{formatPoints(task.reward_points)} pts
-                      </Badge>
+                      {country && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-sm">{country.flag}</span>
+                          <span className="text-xs text-zinc-400">{country.name}</span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* EARN: USD Reward - BIG and prominent */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="w-5 h-5 text-amber-400" />
+                      <span className="text-2xl font-bold text-amber-400">
+                        {formatUsd(task.reward_usd)}
+                      </span>
+                    </div>
+
+                    {/* Bonus points if any */}
+                    {task.reward_points > 0 && (
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Coins className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-sm font-medium text-emerald-400">
+                          +{formatPoints(task.reward_points)} pts bonus
+                        </span>
+                      </div>
+                    )}
 
                     {task.description && (
                       <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{task.description}</p>
                     )}
 
-                    <div className="flex items-center gap-3 mb-3">
-                      {country && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm">{country.flag}</span>
-                          <span className="text-xs text-zinc-400">{country.name}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-amber-400 font-medium">
-                          {formatUsd(pointsToUsd(task.reward_points))}
-                        </span>
-                      </div>
-                    </div>
-
+                    {/* Action Buttons */}
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-xs"
                         onClick={() => openTaskLink(task.link)}
                       >
-                        <ExternalLink className="w-3 h-3 mr-1.5" />
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                         Start Task
                       </Button>
                       <Dialog
@@ -233,9 +245,9 @@ export default function TasksTab() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 border-white/10 text-zinc-300 hover:text-white hover:bg-zinc-800 h-8 text-xs"
+                            className="flex-1 border-white/10 text-zinc-300 hover:text-white hover:bg-zinc-800 h-9 text-xs"
                           >
-                            <Send className="w-3 h-3 mr-1.5" />
+                            <Send className="w-3.5 h-3.5 mr-1.5" />
                             Submit Proof
                           </Button>
                         </DialogTrigger>
@@ -247,7 +259,12 @@ export default function TasksTab() {
                             <div className="p-3 rounded-lg bg-zinc-800/50 border border-white/5">
                               <p className="text-xs text-zinc-400">Task</p>
                               <p className="text-sm text-white font-medium">{task.title}</p>
-                              <p className="text-xs text-emerald-400 mt-0.5">+{formatPoints(task.reward_points)} pts</p>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-sm font-bold text-amber-400">{formatUsd(task.reward_usd)}</span>
+                                {task.reward_points > 0 && (
+                                  <span className="text-xs text-emerald-400">+{formatPoints(task.reward_points)} pts</span>
+                                )}
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="proof-url" className="text-zinc-300 text-xs">

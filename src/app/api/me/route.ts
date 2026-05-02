@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { turso } from '@/lib/turso'
-import { ENERGY_REFILL_MINUTES, MAX_ENERGY } from '@/lib/constants'
+import { ENERGY_REFILL_MINUTES } from '@/lib/constants'
 
 export async function GET(request: Request) {
   try {

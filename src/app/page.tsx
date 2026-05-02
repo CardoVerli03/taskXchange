@@ -27,7 +27,7 @@ export default function Home() {
           telegramUser = tg.initDataUnsafe?.user || null
         }
 
-        // Prepare user data for init - using camelCase to match backend
+        // Prepare user data for init
         const userData = telegramUser
           ? {
               telegramId: String(telegramUser.id),
@@ -78,7 +78,7 @@ export default function Home() {
             <Zap className="w-8 h-8 text-emerald-400" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">TaskX</h1>
-          <p className="text-sm text-zinc-500">Earn Crypto Rewards</p>
+          <p className="text-sm text-zinc-500">Earn Crypto</p>
         </div>
         <div className="w-full max-w-xs space-y-4">
           <Skeleton className="h-12 w-full bg-zinc-800 rounded-xl" />

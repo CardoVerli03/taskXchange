@@ -59,7 +59,6 @@ export async function POST(request: Request) {
     }
 
     // Check min withdrawal amount
-    // Check app_settings for min_withdrawal_usd
     const settingResult = await turso.execute({
       sql: "SELECT value FROM app_settings WHERE key = 'min_withdrawal_usd'",
       args: [],
@@ -97,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     // Deduct from balance
-    const newBalance = (user.balance_usd as number) - amount_usd
+    const newBalance = Math.round(((user.balance_usd as number) - amount_usd) * 100) / 100
     const now = new Date().toISOString()
 
     await turso.execute({
@@ -106,6 +105,9 @@ export async function POST(request: Request) {
     })
 
     // Create withdrawal request
+    const validCryptoTypes = ['LTC', 'SOL']
+    const cryptoType = validCryptoTypes.includes(crypto_type) ? crypto_type : 'LTC'
+
     const result = await turso.execute({
       sql: `INSERT INTO withdrawals (user_id, amount_usd, amount_crypto, wallet_address, crypto_type, status, tx_hash, processed_by, processed_at, created_at)
             VALUES (?, ?, NULL, ?, ?, 'pending', NULL, NULL, NULL, ?)`,
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
         String(telegramId),
         amount_usd,
         wallet_address,
-        crypto_type || 'usdt',
+        cryptoType,
         now,
       ],
     })

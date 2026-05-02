@@ -10,6 +10,7 @@ import {
   Wallet,
   Shield,
   X,
+  Coins,
 } from 'lucide-react'
 import type { TabType } from '@/lib/types'
 import HomeTab from '@/components/tabs/home-tab'
@@ -52,12 +53,20 @@ export default function AppShell() {
           </div>
           <span className="text-lg font-bold text-white tracking-tight">TaskX</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+        <div className="flex items-center gap-2">
+          {/* Points Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <Coins className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-sm font-semibold text-emerald-400">
               {user ? formatPoints(user.points) : '0'}
             </span>
-            <span className="text-xs text-zinc-500">pts</span>
+            <span className="text-[10px] text-zinc-500">pts</span>
+          </div>
+          {/* USD Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+            <span className="text-sm font-semibold text-amber-400">
+              {user ? formatUsd(user.balance_usd) : '$0.00'}
+            </span>
           </div>
           {isAdmin && (
             <Button

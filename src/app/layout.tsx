@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TaskX - Earn Crypto Rewards",
-  description: "Complete tasks, earn crypto. The premier CPA platform for Telegram users.",
+  title: "TaskX - Earn Crypto",
+  description: "Complete tasks, tap to earn, convert to crypto. The premier earning platform for Telegram users.",
   icons: {
     icon: "/favicon.ico",
   },

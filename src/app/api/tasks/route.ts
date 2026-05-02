@@ -8,6 +8,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
     const status = searchParams.get('status') || 'active'
+    const country = searchParams.get('country')
 
     let sql = 'SELECT * FROM tasks WHERE 1=1'
     const args: (string | number)[] = []
@@ -20,6 +21,11 @@ export async function GET(request: Request) {
     if (status) {
       sql += ' AND status = ?'
       args.push(status)
+    }
+
+    if (country) {
+      sql += ' AND (country = ? OR country IS NULL OR country = ?)'
+      args.push(country, 'GLOBAL')
     }
 
     sql += ' ORDER BY created_at DESC'
@@ -53,23 +59,32 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { telegramId, type, title, description, link, reward_points, reward_usd, country, payout_admin, max_completions } = body
+    const { telegramId, type, title, description, link, reward_usd, reward_points, country, payout_admin, max_completions } = body
 
-    if (!telegramId || !type || !title || !link || reward_points === undefined) {
-      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
+    if (!telegramId || !type || !title || !link) {
+      return NextResponse.json({ success: false, error: 'Missing required fields: telegramId, type, title, link' }, { status: 400 })
     }
 
     if (!['paid', 's4s'].includes(type)) {
-      return NextResponse.json({ success: false, error: 'Invalid task type' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Invalid task type. Must be paid or s4s' }, { status: 400 })
     }
 
-    // For 'paid' type, only admin can create
-    if (type === 'paid' && !isAdmin(String(telegramId))) {
-      return NextResponse.json({ success: false, error: 'Only admin can create paid tasks' }, { status: 403 })
+    // For 'paid' type: ONLY admin can create, reward_usd is REQUIRED
+    if (type === 'paid') {
+      if (!isAdmin(String(telegramId))) {
+        return NextResponse.json({ success: false, error: 'Only admin can create paid tasks' }, { status: 403 })
+      }
+      if (reward_usd === undefined || reward_usd === null || reward_usd <= 0) {
+        return NextResponse.json({ success: false, error: 'reward_usd is required and must be > 0 for paid tasks' }, { status: 400 })
+      }
     }
 
-    // For 's4s' type, check active task limit per user
+    // For 's4s' type: any user can create, reward_points is REQUIRED, reward_usd should be 0
     if (type === 's4s') {
+      if (reward_points === undefined || reward_points === null || reward_points <= 0) {
+        return NextResponse.json({ success: false, error: 'reward_points is required and must be > 0 for s4s tasks' }, { status: 400 })
+      }
+
       // Check app_settings for s4s_max_active_per_user
       const settingResult = await turso.execute({
         sql: "SELECT value FROM app_settings WHERE key = 's4s_max_active_per_user'",
@@ -93,6 +108,9 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString()
+    const finalRewardUsd = type === 'paid' ? reward_usd : 0
+    const finalRewardPoints = type === 's4s' ? reward_points : (reward_points || 0)
+    const finalPayoutAdmin = type === 'paid' ? (payout_admin || 0) : null
 
     const result = await turso.execute({
       sql: `INSERT INTO tasks (type, title, description, link, reward_points, reward_usd, country, payout_admin, posted_by, status, max_completions, completions_count, created_at, updated_at)
@@ -102,10 +120,10 @@ export async function POST(request: Request) {
         title,
         description || null,
         link,
-        reward_points,
-        reward_usd || null,
+        finalRewardPoints,
+        finalRewardUsd,
         country || null,
-        payout_admin || null,
+        finalPayoutAdmin,
         String(telegramId),
         max_completions || null,
         now,

@@ -75,13 +75,13 @@ export async function POST(request: Request) {
       })
     }
 
-    // Create new user
+    // Create new user with new economics defaults
     const today = new Date().toISOString().split('T')[0]
     const now = new Date().toISOString()
 
     await turso.execute({
-      sql: `INSERT INTO users (telegram_id, username, first_name, last_name, points, balance_usd, wallet_address, crypto_type, energy, max_energy, streak, last_tap_at, last_streak_date, total_taps, is_banned, trust_score, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 0, 0, NULL, 'LTC', ?, ?, 1, NULL, ?, 0, 0, 50, ?, ?)`,
+      sql: `INSERT INTO users (telegram_id, username, first_name, last_name, points, balance_usd, wallet_address, crypto_type, energy, max_energy, streak, last_tap_at, last_streak_date, last_daily_bonus_date, total_taps, total_mystery_boxes, is_banned, trust_score, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 0, 0, NULL, 'LTC', ?, ?, 1, NULL, ?, NULL, 0, 0, 0, 50, ?, ?)`,
       args: [String(telegramId), username || null, firstName || null, lastName || null, MAX_ENERGY, MAX_ENERGY, today, now, now],
     })
 

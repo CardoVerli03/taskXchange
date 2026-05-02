@@ -14,6 +14,7 @@ interface AppState {
   setInitialized: (initialized: boolean) => void
   addPoints: (points: number) => void
   addBalance: (amount: number) => void
+  deductBalance: (amount: number) => void
   setEnergy: (energy: number) => void
   setStreak: (streak: number) => void
   setWalletAddress: (address: string) => void
@@ -36,7 +37,11 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   addBalance: (amount) =>
     set((state) => ({
-      user: state.user ? { ...state.user, balance_usd: state.user.balance_usd + amount } : null,
+      user: state.user ? { ...state.user, balance_usd: Math.round((state.user.balance_usd + amount) * 100) / 100 } : null,
+    })),
+  deductBalance: (amount) =>
+    set((state) => ({
+      user: state.user ? { ...state.user, balance_usd: Math.round((state.user.balance_usd - amount) * 100) / 100 } : null,
     })),
   setEnergy: (energy) =>
     set((state) => ({

@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/hooks/use-app-store'
-import { formatPoints, pointsToUsd, formatUsd, S4S_MAX_ACTIVE_PER_USER } from '@/lib/constants'
+import { formatPoints, S4S_MAX_ACTIVE_PER_USER } from '@/lib/constants'
 import type { Task } from '@/lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   User,
+  Coins,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -319,6 +320,7 @@ export default function S4sTab() {
                         {task.title}
                       </h3>
                       <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
+                        <Coins className="w-3 h-3 mr-1" />
                         +{formatPoints(task.reward_points)}
                       </Badge>
                     </div>

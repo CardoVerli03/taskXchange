@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/hooks/use-app-store'
-import { formatPoints, pointsToUsd, formatUsd } from '@/lib/constants'
+import { formatPoints, pointsToUsd, formatUsd, getOrbTier } from '@/lib/constants'
 import { motion } from 'framer-motion'
 import {
   Flame,
@@ -10,10 +10,13 @@ import {
   ArrowLeftRight,
   TrendingUp,
   Clock,
-  ChevronRight,
   Star,
   Activity,
   X,
+  Coins,
+  DollarSign,
+  Sparkles,
+  Box,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +25,13 @@ import { Progress } from '@/components/ui/progress'
 import type { Submission } from '@/lib/types'
 import { useEffect, useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
+
+const orbTierColors: Record<string, { bg: string; text: string; border: string; glow: string }> = {
+  green: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', glow: 'shadow-emerald-500/20' },
+  gold: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', glow: 'shadow-amber-500/20' },
+  purple: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/20', glow: 'shadow-violet-500/20' },
+  diamond: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', glow: 'shadow-cyan-500/20' },
+}
 
 export default function HomeTab() {
   const { user, setActiveTab } = useAppStore()
@@ -49,7 +59,8 @@ export default function HomeTab() {
   if (!user) return null
 
   const energyPercent = user.max_energy > 0 ? (user.energy / user.max_energy) * 100 : 0
-  const balanceUsd = pointsToUsd(user.points)
+  const orbTier = getOrbTier(user.streak)
+  const tierColors = orbTierColors[orbTier]
 
   const quickActions = [
     { label: 'View Tasks', icon: Briefcase, tab: 'tasks' as const, color: 'emerald' },
@@ -77,38 +88,52 @@ export default function HomeTab() {
         <p className="text-zinc-500 text-sm mt-0.5">Ready to earn today?</p>
       </motion.div>
 
-      {/* Balance Card */}
+      {/* Two Balance Cards Side by Side */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.05 }}
+        className="grid grid-cols-2 gap-3"
       >
+        {/* Points Card */}
         <Card className="border-white/5 bg-zinc-900 overflow-hidden">
           <div className="absolute inset-0 card-gradient-emerald" />
-          <CardContent className="relative p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Total Balance</span>
-              {user.streak > 0 && (
-                <Badge variant="secondary" className="bg-amber-500/10 text-amber-400 border-amber-500/20 gap-1">
-                  <Flame className="w-3 h-3" />
-                  {user.streak} day streak
-                </Badge>
-              )}
+          <CardContent className="relative p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Coins className="w-4 h-4 text-emerald-400" />
+              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Points</span>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-white">{formatPoints(user.points)}</span>
-              <span className="text-sm text-zinc-500">points</span>
+            <p className="text-2xl font-bold text-white">{formatPoints(user.points)}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">points</p>
+            <div className="flex items-center gap-1 mt-2">
+              <TrendingUp className="w-3 h-3 text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-400">{formatUsd(pointsToUsd(user.points))}</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-400">{formatUsd(balanceUsd)}</span>
-              <span className="text-xs text-zinc-500">USD equivalent</span>
+          </CardContent>
+        </Card>
+
+        {/* USD Card */}
+        <Card className="border-white/5 bg-zinc-900 overflow-hidden">
+          <div className="absolute inset-0 card-gradient-amber" />
+          <CardContent className="relative p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <DollarSign className="w-4 h-4 text-amber-400" />
+              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">USD</span>
             </div>
+            <p className="text-2xl font-bold text-amber-400">{formatUsd(user.balance_usd)}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">available</p>
+            <Button
+              size="sm"
+              className="mt-2 w-full h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => setActiveTab('wallet')}
+            >
+              Withdraw
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats Row */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -124,9 +149,14 @@ export default function HomeTab() {
         </Card>
         <Card className="border-white/5 bg-zinc-900">
           <CardContent className="p-3 text-center">
-            <Activity className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-            <p className="text-lg font-bold text-white">{user.total_taps}</p>
-            <p className="text-[10px] text-zinc-500">Total Taps</p>
+            <div className={`flex items-center justify-center gap-1 mb-1`}>
+              <Flame className={`w-4 h-4 ${tierColors.text} ${user.streak > 0 ? 'streak-pulse' : ''}`} />
+            </div>
+            <p className="text-lg font-bold text-white">{user.streak}</p>
+            <p className="text-[10px] text-zinc-500">Streak</p>
+            <Badge className={`mt-1 text-[9px] h-4 px-1 ${tierColors.bg} ${tierColors.text} border ${tierColors.border}`}>
+              {orbTier}
+            </Badge>
           </CardContent>
         </Card>
         <Card className="border-white/5 bg-zinc-900">
@@ -147,10 +177,15 @@ export default function HomeTab() {
         <Card className="border-white/5 bg-zinc-900">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-zinc-400">Energy</span>
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-medium text-zinc-400">Energy</span>
+              </div>
               <span className="text-xs text-zinc-500">{user.energy}/{user.max_energy}</span>
             </div>
-            <Progress value={energyPercent} className="h-2 bg-zinc-800 [&>div]:bg-emerald-500" />
+            <Progress value={energyPercent} className={`h-2.5 bg-zinc-800 [&>div]:${
+              energyPercent > 50 ? 'bg-emerald-500' : energyPercent > 20 ? 'bg-amber-500' : 'bg-red-500'
+            } [&>div]:rounded-full`} />
           </CardContent>
         </Card>
       </motion.div>
@@ -210,7 +245,7 @@ export default function HomeTab() {
                 <p className="text-xs text-zinc-600 mt-1">Complete tasks to see your history</p>
               </div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-white/5 max-h-64 overflow-y-auto">
                 {recentSubmissions.map((sub) => (
                   <div key={sub.id} className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">

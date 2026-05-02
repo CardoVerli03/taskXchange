@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/hooks/use-app-store'
-import { ADMIN_TELEGRAM_ID } from '@/lib/constants'
 import type { TelegramUser } from '@/lib/types'
 import AppShell from '@/components/app-shell'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -54,7 +53,7 @@ export default function Home() {
 
         if (data.success && data.data) {
           setUser(data.data.user)
-          setIsAdmin(data.data.isAdmin || userData.telegramId === ADMIN_TELEGRAM_ID)
+          setIsAdmin(data.data.isAdmin || false)
         } else {
           setError(data.error || 'Failed to initialize')
         }

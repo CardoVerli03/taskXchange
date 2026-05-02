@@ -33,6 +33,7 @@ export interface Task {
   country: string | null
   payout_admin: number | null  // What admin earns from CPA
   posted_by: string | null
+  poster_username?: string | null  // Joined from users table
   status: 'active' | 'paused' | 'completed'
   max_completions: number | null
   completions_count: number

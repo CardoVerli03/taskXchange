@@ -212,9 +212,11 @@ function AdminTasksTab() {
   const [formSaving, setFormSaving] = useState(false)
 
   const fetchTasks = useCallback(async () => {
+    if (!user) return
     try {
       setLoading(true)
-      const res = await fetch('/api/tasks?status=active&limit=50')
+      // Fetch all tasks (admin sees all statuses) - pass telegramId for admin check
+      const res = await fetch(`/api/tasks?telegramId=${user.telegram_id}`)
       const data = await res.json()
       if (data.success) setTasks(data.data?.tasks || [])
     } catch {
@@ -222,7 +224,7 @@ function AdminTasksTab() {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, user])
 
   useEffect(() => {
     fetchTasks()

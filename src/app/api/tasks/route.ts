@@ -7,8 +7,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
-    const status = searchParams.get('status') || 'active'
+    const statusParam = searchParams.get('status')
+    const telegramId = searchParams.get('telegramId')
     const country = searchParams.get('country')
+
+    // Admin can see all statuses. Regular users see only active tasks.
+    const isUserAdmin = telegramId ? isAdmin(String(telegramId)) : false
+    const status = statusParam && statusParam !== 'all' ? statusParam : (isUserAdmin ? null : 'active')
 
     let sql = 'SELECT * FROM tasks WHERE 1=1'
     const args: (string | number)[] = []

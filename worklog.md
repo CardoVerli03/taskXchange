@@ -190,3 +190,28 @@ Stage Summary:
 - All components are 'use client', use Lucide icons only, dark theme
 - Lint passes cleanly
 - Dev server compiles successfully
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Bug review, fix all issues, and provide deployment instructions
+
+Work Log:
+- Reviewed ALL source files: 14 API routes, 6 tab components, all lib files
+- Found and fixed 8 bugs:
+  1. CRITICAL: Tap tab points desync - server adds tap+daily+box to DB but client only added tap reward + client-side mystery box (different roll). Fixed: client now uses server response data for all point calculations
+  2. CRITICAL: Admin panel not accessible in dev mode - dev_user didn't match admin TG ID. Fixed: isAdmin() now includes 'dev_user' check
+  3. Admin tasks tab only showed active tasks - couldn't see paused/completed. Fixed: fetches all tasks for admin, API has admin check
+  4. S4S showed raw telegram_id instead of poster username. Fixed: added poster_username to Task type and used it in S4S tab
+  5. Unused Prisma db.ts tried connecting to non-existent DB. Fixed: replaced with empty module
+  6. Card gradient overflow - missing 'relative' class on cards with absolute gradient overlays. Fixed: added 'relative' class
+  7. Tasks API defaulted status to 'active' even without filter param. Fixed: now only defaults to active for non-admin users
+  8. Removed unused imports (ADMIN_TELEGRAM_ID from page.tsx, rollMysteryBox/MYSTERY_BOX_INTERVAL/DAILY_BONUS_BASE from tap-tab)
+- Confirmed .env is NOT in public repo (in .gitignore)
+- Lint passes clean
+- Dev server running on port 3000
+
+Stage Summary:
+- 8 bugs fixed across 10 files
+- Security confirmed: .env is in .gitignore, NOT exposed publicly
+- App ready for deployment

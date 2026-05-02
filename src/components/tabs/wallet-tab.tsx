@@ -271,7 +271,7 @@ export default function WalletTab() {
         className="grid grid-cols-2 gap-3"
       >
         {/* Points Card */}
-        <Card className="border-white/5 bg-zinc-900 overflow-hidden">
+        <Card className="relative border-white/5 bg-zinc-900 overflow-hidden">
           <div className="absolute inset-0 card-gradient-emerald" />
           <CardContent className="relative p-4">
             <div className="flex items-center gap-1.5 mb-2">
@@ -296,7 +296,7 @@ export default function WalletTab() {
         </Card>
 
         {/* USD Card */}
-        <Card className="border-white/5 bg-zinc-900 overflow-hidden">
+        <Card className="relative border-white/5 bg-zinc-900 overflow-hidden">
           <div className="absolute inset-0 card-gradient-amber" />
           <CardContent className="relative p-4">
             <div className="flex items-center gap-1.5 mb-2">

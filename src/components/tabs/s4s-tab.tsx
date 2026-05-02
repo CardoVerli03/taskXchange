@@ -195,7 +195,7 @@ export default function S4sTab() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Card className="border-emerald-500/20 bg-zinc-900 overflow-hidden">
+            <Card className="relative border-emerald-500/20 bg-zinc-900 overflow-hidden">
               <div className="absolute inset-0 card-gradient-emerald opacity-50" />
               <CardContent className="relative p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-white">Post Your Link</h3>
@@ -332,7 +332,7 @@ export default function S4sTab() {
                     <div className="flex items-center gap-2 mb-3">
                       <User className="w-3 h-3 text-zinc-500" />
                       <span className="text-xs text-zinc-400">
-                        Posted by {task.posted_by || 'Anonymous'}
+                        Posted by {task.poster_username || task.posted_by || 'Anonymous'}
                       </span>
                     </div>
 

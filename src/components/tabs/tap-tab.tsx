@@ -9,9 +9,6 @@ import {
   getStreakMultiplier,
   getOrbTier,
   ENERGY_REFILL_MINUTES,
-  MYSTERY_BOX_INTERVAL,
-  DAILY_BONUS_BASE,
-  rollMysteryBox,
 } from '@/lib/constants'
 import type { MysteryBoxResult, DailyBonusResult, OrbTier } from '@/lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -133,7 +130,6 @@ export default function TapTab() {
   const floatingIdRef = useRef(0)
   const particleIdRef = useRef(0)
   const tapButtonRef = useRef<HTMLButtonElement>(null)
-  const tapCountSinceLastMystery = useRef(0)
 
   // Calculate next refill time
   useEffect(() => {
@@ -203,17 +199,24 @@ export default function TapTab() {
       const data = await res.json()
 
       if (data.success) {
-        const reward = data.data.pointsEarned || TAP_REWARD_POINTS
-        const newEnergy = data.data.energy ?? user.energy - 1
-        const newStreak = data.data.streak ?? user.streak
+        const result = data.data
+        const tapReward = result.pointsEarned || TAP_REWARD_POINTS
+        const serverDailyBonus = result.dailyBonus || { claimed: false, points: 0 }
+        const serverMysteryBox = result.mysteryBox || { triggered: false, reward: 0, tier: '' }
+        const newEnergy = result.energy ?? user.energy - 1
+        const newStreak = result.streak ?? user.streak
 
-        addPoints(reward)
+        // Add ALL points earned from server (tap + daily bonus + mystery box)
+        const totalPointsEarned = tapReward
+          + (serverDailyBonus.claimed ? serverDailyBonus.points : 0)
+          + (serverMysteryBox.triggered ? serverMysteryBox.reward : 0)
+        addPoints(totalPointsEarned)
         setEnergy(newEnergy)
         if (newStreak !== user.streak) {
           setStreak(newStreak)
         }
 
-        // Spawn floating point
+        // Spawn floating point for tap reward
         const buttonEl = tapButtonRef.current
         if (buttonEl) {
           const rect = buttonEl.getBoundingClientRect()
@@ -222,7 +225,7 @@ export default function TapTab() {
           const fx = cx + (Math.random() - 0.5) * 60
           const fy = rect.top - 10
           const id = ++floatingIdRef.current
-          setFloatingPoints((prev) => [...prev, { id, points: reward, x: fx, y: fy }])
+          setFloatingPoints((prev) => [...prev, { id, points: tapReward, x: fx, y: fy }])
           setTimeout(() => {
             setFloatingPoints((prev) => prev.filter((fp) => fp.id !== id))
           }, 900)
@@ -231,26 +234,18 @@ export default function TapTab() {
           spawnParticles(cx, cy)
         }
 
-        // Check for daily bonus (first tap of the day)
-        const today = new Date().toISOString().split('T')[0]
-        if (user.last_daily_bonus_date !== today && !dailyBonusClaimed) {
-          const bonusPoints = Math.floor(DAILY_BONUS_BASE * streakMultiplier)
-          setDailyBonusResult({ claimed: true, points: bonusPoints, streak: newStreak })
+        // Show daily bonus UI from SERVER response
+        if (serverDailyBonus.claimed && !dailyBonusClaimed) {
+          setDailyBonusResult({ claimed: true, points: serverDailyBonus.points, streak: newStreak })
           setShowDailyBonus(true)
           setDailyBonusClaimed(true)
         }
 
-        // Check for mystery box
-        tapCountSinceLastMystery.current += 1
-        if (tapCountSinceLastMystery.current >= MYSTERY_BOX_INTERVAL) {
-          tapCountSinceLastMystery.current = 0
-          const mbResult = rollMysteryBox()
-          setMysteryBoxResult({ triggered: true, reward: mbResult.reward, tier: mbResult.tier })
+        // Show mystery box UI from SERVER response
+        if (serverMysteryBox.triggered) {
+          setMysteryBoxResult({ triggered: true, reward: serverMysteryBox.reward, tier: serverMysteryBox.tier as MysteryBoxResult['tier'] })
           setShowMysteryBox(true)
           setMysteryBoxPhase('shake')
-
-          // Add mystery box points
-          addPoints(mbResult.reward)
 
           // Phase transitions
           setTimeout(() => setMysteryBoxPhase('open'), 600)
@@ -270,7 +265,7 @@ export default function TapTab() {
     } finally {
       setTapping(false)
     }
-  }, [user, canTap, tapping, addPoints, setEnergy, setStreak, toast, spawnParticles, streakMultiplier, dailyBonusClaimed])
+  }, [user, canTap, tapping, addPoints, setEnergy, setStreak, toast, spawnParticles, dailyBonusClaimed])
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -288,7 +283,7 @@ export default function TapTab() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full mb-4"
       >
-        <Card className="border-white/5 bg-zinc-900 overflow-hidden">
+        <Card className="relative border-white/5 bg-zinc-900 overflow-hidden">
           <div className="absolute inset-0 card-gradient-amber opacity-60" />
           <CardContent className="relative flex items-center justify-between p-3">
             <div className="flex items-center gap-3">

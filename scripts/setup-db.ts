@@ -10,6 +10,7 @@ async function setup() {
 
   try { await turso.execute('DROP TABLE IF EXISTS submissions') } catch {}
   try { await turso.execute('DROP TABLE IF EXISTS withdrawals') } catch {}
+  try { await turso.execute('DROP TABLE IF EXISTS point_conversions') } catch {}
   try { await turso.execute('DROP TABLE IF EXISTS tasks') } catch {}
   try { await turso.execute('DROP TABLE IF EXISTS users') } catch {}
   try { await turso.execute('DROP TABLE IF EXISTS app_settings') } catch {}
